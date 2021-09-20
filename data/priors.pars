@@ -1,0 +1,15 @@
+# The following Prior_Type options are available:
+#   id  FIXED   value
+#   id  Uniform min_value,max_value,initial_guess
+#   id  Jeffreys min_value,max_value,initial_guess
+#   id  Normal mean,sigma
+#   id  Normal_positive mean,sigma
+#
+# Parameter_ID    Prior_Type    Hyperparameters  Initial_guess(optional)
+#
+mean     Uniform   -1e100,1e100,0.
+white_noise     Uniform   -1e100,1e100,0.
+amplitude     Uniform   0,1e100,1.0
+period     Uniform   2,300
+decaytime     Uniform   50,1000,200
+smoothfactor     Uniform   0.25,1.25
