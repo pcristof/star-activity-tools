@@ -419,7 +419,17 @@ def get_theta_from_priors(planet_priors, calib_priors, flare_priors, rvcalib_pri
 def save_posterior(output, params, theta_fit, theta_labels, theta_err, calib=False, ncoeff=1, ref_time=0.) :
 
     outfile = open(output,"w")
-    outfile.write("# Parameter_ID\tPrior_Type\tValues\n")
+    
+    outfile.write("# The following Prior_Type options are available:\n")
+    outfile.write("#   id  FIXED   value\n")
+    outfile.write("#   id  Uniform min_value,max_value,initial_guess\n")
+    outfile.write("#   id  Jeffreys min_value,max_value,initial_guess\n")
+    outfile.write("#   id  Normal mean,sigma\n")
+    outfile.write("#   id  Normal_positive mean,sigma\n")
+    outfile.write("#\n")
+    outfile.write("# Parameter_ID    Prior_Type    Hyperparameters  Initial_guess(optional)\n")
+    outfile.write("#\n")
+
     if calib :
         outfile.write("orderOfPolynomial\tFIXED\t{0}\n".format(ncoeff))
     

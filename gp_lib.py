@@ -28,6 +28,49 @@ from balrogo import marginals
 import priorslib
 from copy import deepcopy
 
+
+#- Update params from theta values
+def updateParams(params, theta, labels) :
+    for key in params.keys() :
+        for j in range(len(theta)) :
+            if key == labels[j]:
+                params[key] = theta[j]
+                break
+    return params
+
+
+#- Derive best-fit params and their 1-sigm a error bars
+def best_fit_params(params, free_param_labels, samples, use_mean=False, verbose = False) :
+
+    theta, theta_labels, theta_err = [], [], []
+    
+    if use_mean :
+        npsamples = np.array(samples)
+        values = []
+        for i in range(len(samples[0])) :
+            mean = np.mean(npsamples[:,i])
+            err = np.std(npsamples[:,i])
+            values.append([mean,err,err])
+    else :
+        func = lambda v: (v[1], v[2]-v[1], v[1]-v[0])
+        percents = np.percentile(samples, [16, 50, 84], axis=0)
+        seq = list(zip(*percents))
+        values = list(map(func, seq))
+
+    for i in range(len(values)) :
+        if free_param_labels[i] in params.keys() :
+            theta.append(values[i][0])
+            theta_err.append((values[i][1],values[i][2]))
+            theta_labels.append(free_param_labels[i])
+            
+            if verbose :
+                print(free_param_labels[i], "=", values[i][0], "+", values[i][1],"-", values[i][2])
+
+    params = updateParams(params, theta, theta_labels)
+
+    return params, theta, theta_labels, theta_err
+
+
 #########################
 ###### START GP QP Kernel
 #########################
@@ -63,7 +106,6 @@ def set_theta_priors(params, priortypes, values) :
                 theta_priors[key]['object'] = priorslib.normal_parameter(np.array(values[key]).astype('float64'), True)
             elif priortypes[key] == 'Uniform':
                 theta_priors[key]['object'] = priorslib.uniform_parameter(np.array(values[key]).astype('float64'))
-                print(theta_priors[key]['object'])
             elif priortypes[key] == 'Jeffreys':
                 theta_priors[key]['object'] = priorslib.jeffreys_parameter(np.array(values[key]).astype('float64'))
 
@@ -174,7 +216,7 @@ def star_rotation_gp(t, y, yerr,
                      fixpars_before_fit=True,
                      x_label="time", y_label="y", output_pairsplot="",
                      run_mcmc=False, amp=1e-4, nwalkers=32, niter=500, burnin=100,
-                     plot=False, verbose=False) :
+                     output="", plot=False, verbose=False) :
 
     # define star rotation kernel:
     # Eq. 2 of Angus et al. 2017
@@ -216,7 +258,9 @@ def star_rotation_gp(t, y, yerr,
     gp.compute(t, yerr)  # You always need to call compute once.
     if verbose :
         print("Initial log likelihood: {0}".format(gp.log_likelihood(y)))
-        print("parameter_dict:\n{0}\n".format(gp.get_parameter_dict()))
+        #gpiniparam = gp.get_parameter_dict()
+        #for key in gpiniparam.keys() :
+        #    print("{} = {}\n".format(key,gpiniparam[key]))
     
     initial_params = gp.get_parameter_vector()
     bounds = gp.get_parameter_bounds()
@@ -227,7 +271,7 @@ def star_rotation_gp(t, y, yerr,
 
         # print the value of the optimised parameters:
         if verbose :
-            print("Fit parameters: {0}".format(soln.x))
+            #print("Fit parameters: {0}".format(soln.x))
             print("Final log likelihood: {0}".format(gp.log_likelihood(y)))
     
         # pass the parameters to the kernel:
@@ -238,7 +282,8 @@ def star_rotation_gp(t, y, yerr,
         if verbose :
             print("Fit parameters:")
             for key in params :
-                print(key,"=",params[key])
+                if ("_err" not in key) and ("_pdf" not in key) :
+                    print(key,"=",params[key])
 
     if plot :
         x = np.linspace(t[0], t[-1], 10000)
@@ -301,8 +346,6 @@ def star_rotation_gp(t, y, yerr,
         seq = list(zip(*percents))
         values = list(map(func, seq))
 
-        if verbose :
-            print("values=",values)
         mean_params, max_params, min_params = [], [], []
         for i in range(len(labels)) :
             mean_params.append(values[i][0])
@@ -358,7 +401,12 @@ def star_rotation_gp(t, y, yerr,
                 plt.savefig(output_pairsplot,bbox_inches='tight')
             plt.show()
 
-            plot_gp_timeseries(t, y, yerr, gp, params["period"], phase_plot=False, timesampling=0.001, ylabel=y_label)
+            params, theta_fit, theta_labels, theta_err = best_fit_params(params, labels, samples)
+
+            plot_gp_timeseries(t, y, yerr, gp, params["period"], phase_plot=False, timesampling=0.001, ylabel=y_label, number_of_free_params=len(theta_fit))
+
+        if output != "" :
+            priorslib.save_posterior(output, params, theta_fit, theta_labels, theta_err)
 
     return gp
 
@@ -414,7 +462,7 @@ def set_star_rotation_gp_params(gp, params) :
     return gp
 
 
-def plot_gp_timeseries(bjds, y, yerr, gp, fold_period, phase_plot=True, timesampling=0.001, ylabel=r"B$_l$ [G]") :
+def plot_gp_timeseries(bjds, y, yerr, gp, fold_period, phase_plot=True, timesampling=0.001, ylabel=r"B$_l$ [G]", number_of_free_params=0) :
 
     fig, axes = plt.subplots(2, 1, figsize=(7, 5), sharex=True, sharey=False, gridspec_kw={'hspace': 0, 'height_ratios': [2, 1]})
 
@@ -445,6 +493,12 @@ def plot_gp_timeseries(bjds, y, yerr, gp, fold_period, phase_plot=True, timesamp
     axes[1].set_ylabel(r"Residuals [G]", fontsize=16)
     axes[1].tick_params(axis='x', labelsize=14)
     axes[1].tick_params(axis='y', labelsize=14)
+    
+    print("RMS of {} residuals: {:.2f}".format(ylabel, sig_res))
+    n = len(residuals)
+    m = number_of_free_params
+    chi2 = np.sum((residuals/yerr)**2) / (n - m)
+    print("Reduced chi-square (n={}, DOF={}): {:.2f}".format(n,n-m,chi2))
     
     plt.show()
 
