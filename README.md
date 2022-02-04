@@ -11,3 +11,5 @@ python star_rotation_analysis.py --gp_priors=data/priors.pars --outdir=./results
 --pairsplot=TOI-1759_blong_gp_pairsplot.png --input=data/TOI-1759_blong.rdb 
 --nsteps=1000 --walkers=50 --burnin=200 -vped
 ```
+
+If you're using this code, please cite [Martioli et al. (2022)](https://ui.adsabs.harvard.edu/abs/2022arXiv220201259M/abstract)
