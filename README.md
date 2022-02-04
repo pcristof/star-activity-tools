@@ -9,5 +9,5 @@ Below is an example of simple use to run this tool to analyze the time series of
 ```
 python star_rotation_analysis.py --gp_priors=data/priors.pars --outdir=./results/ 
 --pairsplot=TOI-1759_blong_gp_pairsplot.png --input=data/TOI-1759_blong.rdb 
---nsteps=1000 --walkers=50 --burnin=200 -vp
+--nsteps=1000 --walkers=50 --burnin=200 -vped
 ```
