@@ -174,9 +174,7 @@ def lnprior(theta_priors, theta, labels):
 
             if not theta_priors[labels[i]]['object'].check_value(theta[i]):
                 return -np.inf
-            
-            if labels[i] == 'white_noise' and theta[i] < 0:
-                print("Why am I here?", theta[i], theta_priors[labels[i]]['object'].check_value(theta[i]))
+        
         total_prior += theta_priors[labels[i]]['object'].get_ln_prior()
 
     return total_prior
@@ -216,6 +214,7 @@ def star_rotation_gp(t, y, yerr,
                      fixpars_before_fit=True,
                      x_label="time", y_label="y", output_pairsplot="",
                      run_mcmc=False, amp=1e-4, nwalkers=32, niter=500, burnin=100,
+                     best_fit_from_mode = True, plot_distributions=False,
                      output="", plot=False, verbose=False) :
 
     # define star rotation kernel:
@@ -297,6 +296,8 @@ def star_rotation_gp(t, y, yerr,
                  edgecolor="none")
         plt.xlabel(x_label, fontsize=15)
         plt.ylabel(y_label, fontsize=15)
+        plt.xticks(fontsize=16)
+        plt.yticks(fontsize=16)
         plt.show()
 
     if fix_mean :
@@ -346,26 +347,64 @@ def star_rotation_gp(t, y, yerr,
         seq = list(zip(*percents))
         values = list(map(func, seq))
 
-        mean_params, max_params, min_params = [], [], []
+        max_values = []
+        nbins = 30
+            
         for i in range(len(labels)) :
-            mean_params.append(values[i][0])
+            hist, bin_edges = np.histogram(samples[:,i], bins=nbins, range=(values[i][0]-5*values[i][1],values[i][0]+5*values[i][2]), density=True)
+            xcen = (bin_edges[:-1] + bin_edges[1:])/2
+            mode = xcen[np.argmax(hist)]
+            max_values.append(mode)
+                
+            if plot_distributions :
+                nmax = len(samples[:,i])
+                plt.step(xcen, hist, where='mid')
+                plt.vlines([values[i][0]], np.min(0), np.max(hist), ls="--", label="median")
+                plt.vlines([mode], np.min(0), np.max(hist), ls=":", label="mode")
+                plt.ylabel(r"Probability density",fontsize=18)
+                plt.xlabel(r"{}".format(labels[i]),fontsize=18)
+                plt.legend()
+                plt.show()
+
+                plt.plot(samples[:,i],label="{}".format(labels[i]), alpha=0.5, lw=0.5)
+                plt.hlines([], np.min(0), np.max(nmax), ls=":", label="mode",zorder=2)
+                plt.hlines([values[i][0]], np.min(0), np.max(nmax), ls="-", label="median",zorder=2)
+                plt.ylabel(r"{}".format(labels[i]),fontsize=18)
+                plt.xlabel(r"MCMC iteration",fontsize=18)
+                plt.legend(fontsize=18)
+                plt.show()
+                    
+        max_values = np.array(max_values)
+        
+        max_params, min_params = [], []
+        median_params, mode_params = [], []
+        
+        for i in range(len(labels)) :
+            mode_params.append(max_values[i])
+            median_params.append(values[i][0])
             max_params.append(values[i][1])
             min_params.append(values[i][2])
         min_params, max_params = np.array(min_params), np.array(max_params)
-        mean_params = np.array(mean_params)
+        median_params = np.array(median_params)
+        mode_params = np.array(mode_params)
         err_params = (min_params + max_params)/2
 
         # Update the kernel gp parameters
-        params = update_params(params, labels, mean_params)
+        if best_fit_from_mode :
+            mean_params = deepcopy(mode_params)
+            params = update_params(params, labels, mode_params)
+        else :
+            mean_params = deepcopy(median_params)
+            params = update_params(params, labels, median_params)
         gp = set_star_rotation_gp_params(gp, params)
         gp.compute(t, yerr)
 
         if verbose :
             for i in range(len(labels)) :
-                mean = mean_params[i]
+                median, mode = median_params[i], mode_params[i]
                 min = min_params[i]
                 max = max_params[i]
-                print("{} = {:.8f} + {:.8f} - {:.8f}".format(labels[i], mean, max, min))
+                print("{} = {:.8f} + {:.8f} - {:.8f}  (mode = {:.8f})".format(labels[i], median, max, min, mode))
 
         if plot :
             cornerlabels, corner_ranges = [], []
@@ -389,7 +428,7 @@ def star_rotation_gp(t, y, yerr,
                     cornerlabels.append(white_noise_label)
                     corner_ranges.append((mean_params[i]-3.5*err_params[i],mean_params[i]+3.5*err_params[i]))
 
-            fig = corner.corner(sampler.flatchain, truths=mean_params, labels=cornerlabels, quantiles=[0.16, 0.5, 0.84],tick_size=14,labelsize=30,tick_rotate=30,label_kwargs=dict(fontsize=18))
+            fig = corner.corner(sampler.flatchain, truths=mean_params, labels=cornerlabels, quantiles=[0.16, 0.5, 0.84],tick_size=14,labelsize=30,tick_rotate=30,label_kwargs=dict(fontsize=18), show_titles=True)
             #marginals.corner(sampler.flatchain, truths=mean_params, labels=cornerlabels, quantiles=[0.16, 0.5, 0.84], tick_size=14, label_size=18, max_n_ticks=4, colormain='tab:blue', truth_color=(1,102/255,102/255),colorhist='tab:blue', colorbackgd=(240/255,240/255,240/255),tick_rotate=30)
 
             for ax in fig.get_axes():
@@ -398,7 +437,9 @@ def star_rotation_gp(t, y, yerr,
                 ax.tick_params(axis='both', labelsize=14)
 
             if output_pairsplot != "":
-                plt.savefig(output_pairsplot,bbox_inches='tight')
+                plt.savefig(output_pairsplot, bbox_inches='tight')
+            plt.xticks(fontsize=16)
+            plt.yticks(fontsize=16)
             plt.show()
 
             params, theta_fit, theta_labels, theta_err = best_fit_params(params, labels, samples)
@@ -500,6 +541,8 @@ def plot_gp_timeseries(bjds, y, yerr, gp, fold_period, phase_plot=True, timesamp
     chi2 = np.sum((residuals/yerr)**2) / (n - m)
     print("Reduced chi-square (n={}, DOF={}): {:.2f}".format(n,n-m,chi2))
     
+    plt.xticks(fontsize=16)
+    plt.yticks(fontsize=16)
     plt.show()
 
     if phase_plot :
@@ -514,4 +557,6 @@ def plot_gp_timeseries(bjds, y, yerr, gp, fold_period, phase_plot=True, timesamp
         plt.ylabel(ylabel, fontsize=16)
         plt.xlabel("phase (P={0:.2f} d)".format(fold_period), fontsize=16)
         plt.legend(fontsize=16)
+        plt.xticks(fontsize=16)
+        plt.yticks(fontsize=16)
         plt.show()
