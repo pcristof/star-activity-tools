@@ -9,8 +9,12 @@
     
     Simple usage examples:
     
-    python star_rotation_analysis.py --gp_priors=data/priors.pars --outdir=./results/ --pairsplot=TOI-1759_blong_gp_pairsplot.png --input=data/TOI-1759_blong.rdb --nsteps=1000 --walkers=50 --burnin=200 -vped
+    python star_rotation_analysis.py --gp_priors=data/priors.pars --outdir=./results/ --pairsplot=TOI-1759_blong_gp_pairsplot.png --input=data/TOI-1759_blong.rdb --nsteps=1000 --walkers=50 --burnin=200 -vpe
     
+    
+    python star_rotation_analysis.py --gp_priors=/Volumes/Samsung_T5/Science/TOI-1718/gp_phot_priors.pars --outdir=/Volumes/Samsung_T5/Science/TOI-1718/GP-phot/ --pairsplot=TOI-1718_tess_gp_pairsplot.png --input=/Volumes/Samsung_T5/Science/TOI-1718/TOI-1718_tessphot.rdb --nsteps=1000 --walkers=50 --burnin=200 -vpe
+    
+    python /Volumes/Samsung_T5/Science/star-activity-tools/star_rotation_analysis.py --gp_priors=gp_sindex_priors.pars --outdir=./ --pairsplot=TOI-1736_sindex_gp_pairsplot.png --input=TOI1736_sophie_sindex.txt --nsteps=1000 --walkers=50 --burnin=200 --variable_name="S-index" -vper
     """
 
 __version__ = "1.0"
@@ -32,13 +36,14 @@ import timeseries_lib
 parser = OptionParser()
 parser.add_option("-i", "--input", dest="input", help='Input time series data file (.rdb)',type='string',default="")
 parser.add_option("-m", "--variable_name", dest="variable_name", help='Variable name',type='string',default="B$_l$")
-parser.add_option("-u", "--variable_units", dest="variable_units", help='Variable units',type='string',default="G")
+parser.add_option("-u", "--variable_units", dest="variable_units", help='Variable units',type='string',default="")
 parser.add_option("-o", "--outdir", dest="outdir", help="Directory to save output files",type='string',default="./")
 parser.add_option("-g", "--gp_priors", dest="gp_priors", help='GP priors file',type='string',default="")
 parser.add_option("-t", "--pairsplot", dest="pairsplot", help='Pairsplot file name',type='string',default="")
 parser.add_option("-n", "--nsteps", dest="nsteps", help="Number of MCMC steps",type='int',default=500)
 parser.add_option("-w", "--walkers", dest="walkers", help="Number of MCMC walkers",type='int',default=32)
 parser.add_option("-b", "--burnin", dest="burnin", help="Number of MCMC burn-in samples",type='int',default=100)
+parser.add_option("-r", action="store_true", dest="use_gls_period", help="Use period from GLS periodogram", default=False)
 parser.add_option("-s", action="store_true", dest="savesamples", help="Save MCMC samples into file", default=False)
 parser.add_option("-e", action="store_true", dest="mode", help="Best fit parameters obtained by the mode instead of median", default=False)
 parser.add_option("-d", action="store_true", dest="plot_distributions", help="Plot detailed distributions", default=False)
@@ -119,15 +124,24 @@ if options.verbose :
 ##########################################
 ### ANALYSIS of input data
 ##########################################
-ylabel = r"{0} [{1}]".format(options.variable_name,options.variable_units)
+ylabel = r"{}".format(options.variable_name)
+if options.variable_units != "" :
+    ylabel = r"{0} [{1}]".format(options.variable_name,options.variable_units)
+    
+best_period = gp_params["period"]
+    
 gls = timeseries_lib.periodogram(bjds, y, yerr, nyquist_factor=4, probabilities = [0.00001], npeaks=1, y_label=ylabel, plot=options.plot, phaseplot=options.plot)
 
-best_period = gls['period']
-if options.verbose :
-    print("GLS periodogram highest peak at P={:.3f} d".format(best_period))
+if options.use_gls_period :
+    best_period = gls['period']
 
-if param_fixed['period'] :
-    best_period = gp_params["period"]
+    if options.verbose :
+        print("GLS periodogram highest peak at P={:.3f} d".format(best_period))
+        
+else :
+    if options.verbose :
+        print("Initial guess period at P={:.3f} d".format(best_period))
+
 amplitude = gp_params["amplitude"]
 decaytime = gp_params["decaytime"]
 smoothfactor = gp_params["smoothfactor"]
@@ -155,7 +169,7 @@ smoothfactor_lim = param_lim["smoothfactor"]
 amp, nwalkers, niter, burnin = 1e-4, options.walkers, options.nsteps, options.burnin
 
 # Run GP on B-long data with a QP kernel
-gp = gp_lib.star_rotation_gp(bjds, y, yerr, period=best_period, period_lim=period_lim, fix_period=fix_period, amplitude=amplitude, amplitude_lim=amplitude_lim, fix_amplitude=fix_amplitude, decaytime=decaytime, decaytime_lim=decaytime_lim, fix_decaytime=fix_decaytime, smoothfactor=smoothfactor, smoothfactor_lim=smoothfactor_lim, fix_smoothfactor=fix_smoothfactor, fixpars_before_fit=True, fit_mean=fit_mean, fit_white_noise=fit_white_noise, period_label=r"Prot [d]", amplitude_label=r"$\alpha$ [{0}]".format(options.variable_units), decaytime_label=r"$l$ [d]", smoothfactor_label=r"$\beta$", mean_label=r"$\mu$ [{0}]".format(options.variable_units), white_noise_label=r"$\sigma$ [{0}]".format(options.variable_units), output_pairsplot=output_pairsplot, run_mcmc=True, amp=amp, nwalkers=nwalkers, niter=niter, burnin=burnin, x_label="BJD", y_label=ylabel, output=gp_posterior, best_fit_from_mode = options.mode, plot_distributions = options.plot_distributions, plot=True, verbose=True)
+gp = gp_lib.star_rotation_gp(bjds, y, yerr, period=best_period, period_lim=period_lim, fix_period=fix_period, amplitude=amplitude, amplitude_lim=amplitude_lim, fix_amplitude=fix_amplitude, decaytime=decaytime, decaytime_lim=decaytime_lim, fix_decaytime=fix_decaytime, smoothfactor=smoothfactor, smoothfactor_lim=smoothfactor_lim, fix_smoothfactor=fix_smoothfactor, fixpars_before_fit=True, fit_mean=fit_mean, fit_white_noise=fit_white_noise, period_label=r"Prot [d]", amplitude_label=r"$\alpha$ {0}".format(options.variable_units), decaytime_label=r"$l$ [d]", smoothfactor_label=r"$\beta$", mean_label=r"$\mu$ {0}".format(options.variable_units), white_noise_label=r"$\sigma$ {0}".format(options.variable_units), output_pairsplot=output_pairsplot, run_mcmc=True, amp=amp, nwalkers=nwalkers, niter=niter, burnin=burnin, x_label="BJD", y_label=ylabel, output=gp_posterior, best_fit_from_mode = options.mode, plot_distributions = options.plot_distributions, plot=True, verbose=True)
 
 gp_params = gp_lib.get_star_rotation_gp_params(gp)
 best_period = gp_params["period"]

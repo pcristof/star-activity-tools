@@ -24,7 +24,7 @@ from PyAstronomy.pyasl import foldAt
 import george
 from george import kernels
 import corner
-from balrogo import marginals
+#from balrogo import marginals
 import priorslib
 from copy import deepcopy
 
@@ -520,7 +520,7 @@ def plot_gp_timeseries(bjds, y, yerr, gp, fold_period, phase_plot=True, timesamp
     color = "#ff7f0e"
     axes[0].plot(time, pred_mean, "-", color=color, lw=2, label="GP model")
     axes[0].fill_between(time, pred_mean+pred_std, pred_mean-pred_std, color=color, alpha=0.3, edgecolor="none")
-    axes[0].errorbar(bjds, y, yerr=yerr, fmt='o', color='k', label='SPIRou data')
+    axes[0].errorbar(bjds, y, yerr=yerr, fmt='o', color='k', label='data')
     axes[1].errorbar(bjds, residuals, yerr=yerr, fmt='o', color='k')
     axes[1].set_xlabel("BJD", fontsize=16)
 
@@ -531,7 +531,7 @@ def plot_gp_timeseries(bjds, y, yerr, gp, fold_period, phase_plot=True, timesamp
 
     sig_res = np.nanstd(residuals)
     axes[1].set_ylim(-5*sig_res,+5*sig_res)
-    axes[1].set_ylabel(r"Residuals [G]", fontsize=16)
+    axes[1].set_ylabel(r"Residuals", fontsize=16)
     axes[1].tick_params(axis='x', labelsize=14)
     axes[1].tick_params(axis='y', labelsize=14)
     
@@ -551,7 +551,7 @@ def plot_gp_timeseries(bjds, y, yerr, gp, fold_period, phase_plot=True, timesamp
         sortIndi = np.argsort(phases)
         #mphases = foldAt(time, fold_period, T0=ti)
         #msortIndi = np.argsort(mphases)
-        plt.errorbar(phases[sortIndi], y[sortIndi], yerr=yerr[sortIndi], fmt='o', color='k', label='SPIRou data')
+        plt.errorbar(phases[sortIndi], y[sortIndi], yerr=yerr[sortIndi], fmt='o', color='k', label='data')
         #plt.plot(mphases[msortIndi], pred_mean[msortIndi], "-", color=color, lw=2, alpha=0.01, label="GP model")
         #plt.fill_between(mphases[msortIndi], pred_mean[msortIndi]+pred_std[msortIndi], pred_mean[msortIndi]-pred_std[msortIndi], color=color, alpha=0.01, edgecolor="none")
         plt.ylabel(ylabel, fontsize=16)

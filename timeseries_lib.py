@@ -24,7 +24,7 @@ from astropy.timeseries import LombScargle
 from PyAstronomy.pyasl import foldAt
 
 
-def periodogram(x, y, yerr, period=0., nyquist_factor=20, probabilities = [0.01, 0.001], y_label="y", check_period=0, npeaks=1, phaseplot=False, plot=False) :
+def periodogram(x, y, yerr, period=0., nyquist_factor=20, probabilities = [0.01, 0.001], y_label="y", check_period=0, npeaks=1, phaseplot=False, plot=False, plot_frequencies=False) :
     """
         Description: calculate GLS periodogram
         """
@@ -57,21 +57,33 @@ def periodogram(x, y, yerr, period=0., nyquist_factor=20, probabilities = [0.01,
         plt.rc('xtick', labelsize=16)    # fontsize of the tick labels
         plt.rc('ytick', labelsize=16)    # fontsize of the tick labels
 
-        plt.plot(periods, power, color="k", zorder=1)
+        if plot_frequencies :
+            plt.plot(frequency, power, color="k", zorder=1)
+        else :
+            plt.plot(periods, power, color="k", zorder=1)
+            
         for i in range(len(best_frequencies)) :
             best_frequency, best_power = best_frequencies[i], best_powers[i]
-            plt.vlines(1/best_frequency, np.min(power), best_power, ls="--", color=colors[i], label="Max power at P={0:.1f} d".format(1/best_frequency), zorder=2)
+            if plot_frequencies :
+                plt.vlines(best_frequency, np.min(power), best_power, ls="--", color=colors[i], label="Max power at F={0:.1f} 1/d".format(best_frequency), zorder=2)
+            else :
+                plt.vlines(1/best_frequency, np.min(power), best_power, ls="--", color=colors[i], label="Max power at P={0:.1f} d".format(1/best_frequency), zorder=2)
+
             #plt.hlines(best_power, np.min(periods), 1/best_frequency, ls="--", color=colors[i], zorder=2)
+ 
+        if plot_frequencies :
+            plt.xlabel("Frequency [1/d]", fontsize=15)
+        else :
+            if check_period :
+                plt.vlines(check_period, np.min(power), np.max(power), color="red",ls="--", label="Max power at P={0:.4f} d".format(check_period))
 
-        if check_period :
-            plt.vlines(check_period, np.min(power), np.max(power), color="red",ls="--", label="Max power at P={0:.4f} d".format(check_period))
-
-        for i in range(len(fap)) :
-            plt.text(np.min(periods),fap[i]+0.01,r"FAP={0:.3f}%".format(100*probabilities[i]),horizontalalignment='left', fontsize=15)
-            plt.hlines([fap[i]], np.min(periods), np.max(periods),ls=":", lw=0.5)
-
+            for i in range(len(fap)) :
+                plt.text(np.min(periods),fap[i]+0.01,r"FAP={0:.3f}%".format(100*probabilities[i]),horizontalalignment='left', fontsize=15)
+                plt.hlines([fap[i]], np.min(periods), np.max(periods),ls=":", lw=0.5)
+                plt.xlabel("Period [d]", fontsize=15)
+            
+        #plt.yscale('log')
         plt.xscale('log')
-        plt.xlabel("Period [d]", fontsize=15)
         plt.ylabel("Power", fontsize=15)
         plt.legend(fontsize=16)
         plt.show()
@@ -105,15 +117,27 @@ def periodogram(x, y, yerr, period=0., nyquist_factor=20, probabilities = [0.01,
     return loc
 
 
-def phase_plot(x, y, yerr, fold_period, ylabel="y", t0=0, alpha=0.7) :
+def phase_plot(x, y, yerr, gp, fold_period, ylabel="y", t0=0, alpha=0.7, timesampling=0.001) :
     
     if t0 == 0:
         t0 = np.nanmin(x)
-    
+
     phases, epochs = foldAt(x, fold_period, T0=t0, getEpoch=True)
     sortIndi = np.argsort(phases)
     min_epoch, max_epoch = int(np.nanmin(epochs)), int(np.nanmax(epochs))
 
+
+    ti, tf = np.min(x), np.max(x)
+    time = np.arange(ti, tf, timesampling)
+    mphases = foldAt(time, fold_period, T0=t0)
+    msortIndi = np.argsort(mphases)
+    pred_mean, pred_var = gp.predict(y, time, return_var=True)
+    pred_std = np.sqrt(pred_var)
+
+    color = "#ff7f0e"
+    plt.plot(mphases[msortIndi], pred_mean[msortIndi], "-", color=color, lw=2, alpha=0.5, label="GP model")
+    #plt.fill_between(mphases[msortIndi], pred_mean[msortIndi]+pred_std[msortIndi], pred_mean[msortIndi]-pred_std[msortIndi], color=color, alpha=0.3, edgecolor="none")
+    
     for ep in range(min_epoch, max_epoch+1) :
         inepoch = epochs[sortIndi] == ep
         if len(phases[sortIndi][inepoch]) :
