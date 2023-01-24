@@ -11,7 +11,6 @@
     
     python star_rotation_analysis.py --gp_priors=data/priors.pars --outdir=./results/ --pairsplot=TOI-1759_blong_gp_pairsplot.png --input=data/TOI-1759_blong.rdb --nsteps=1000 --walkers=50 --burnin=200 -vpe
     
-    
     python star_rotation_analysis.py --gp_priors=/Volumes/Samsung_T5/Science/TOI-1718/gp_phot_priors.pars --outdir=/Volumes/Samsung_T5/Science/TOI-1718/GP-phot/ --pairsplot=TOI-1718_tess_gp_pairsplot.png --input=/Volumes/Samsung_T5/Science/TOI-1718/TOI-1718_tessphot.rdb --nsteps=1000 --walkers=50 --burnin=200 -vpe
     
     python /Volumes/Samsung_T5/Science/star-activity-tools/star_rotation_analysis.py --gp_priors=gp_sindex_priors.pars --outdir=./ --pairsplot=TOI-1736_sindex_gp_pairsplot.png --input=TOI1736_sophie_sindex.txt --nsteps=1000 --walkers=50 --burnin=200 --variable_name="S-index" -vper
@@ -136,7 +135,7 @@ if options.use_gls_period :
     best_period = gls['period']
 
     if options.verbose :
-        print("GLS periodogram highest peak at P={:.3f} d".format(best_period))
+        print("GLS highest peak at P={:.3f} d".format(best_period))
         
 else :
     if options.verbose :
