@@ -70,7 +70,10 @@ if options.file_params!="":
             print("Error: the default parameter file contains arguments not found in the options"); sys.exit(1);
         if sl[0] in updated_args:
             print("Error: argument repeated in default parameter file"); sys.exit(1);
-        parser.defaults[sl[0]] = sl[1]
+        value = sl[1]
+        if value.lower()=='true': value = True
+        if value.lower()=='false': value = False
+        parser.defaults[sl[0]] = value
         updated_args.append(sl[0])
     f.close()
 try:
