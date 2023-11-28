@@ -72,7 +72,7 @@ if options.file_params!="":
             print("Error: argument repeated in default parameter file"); sys.exit(1);
         value = sl[1]
         if value.lower()=='true': value = True
-        if value.lower()=='false': value = False
+        elif value.lower()=='false': value = False
         parser.defaults[sl[0]] = value
         updated_args.append(sl[0])
     f.close()
