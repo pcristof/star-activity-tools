@@ -215,8 +215,8 @@ def star_rotation_gp(t, y, yerr,
                      x_label="time", y_label="y", output_pairsplot="",
                      run_mcmc=False, amp=1e-4, nwalkers=32, niter=500, burnin=100,
                      best_fit_from_mode = True, plot_distributions=False,
-                     output="", plot=False, verbose=False) :
-
+                     output="", plot=False, verbose=False, **kargs):
+    
     # define star rotation kernel:
     # Eq. 2 of Angus et al. 2017
     #k1 = kernels.ConstantKernel(log_constant=np.log(amplitude**2), bounds=dict(log_constant=(np.log(amplitude_lim[0]**2),np.log(amplitude_lim[1]**2))))
@@ -315,6 +315,19 @@ def star_rotation_gp(t, y, yerr,
 
     if run_mcmc :
 
+        ## Should we run in parallel?
+        if kargs['nbcores'] > 1:
+            from multiprocessing import Pool, get_context
+            import sys
+            if sys.platform == "darwin": ## This should be a mac
+                if verbose:
+                    print('OS detected: MacOS')
+                pool = get_context("fork").Pool(kargs['nbcores']) # Avoid issue on mac with M chips
+            else:
+                pool = Pool(kargs['nbcores'])
+        else:
+            pool = None
+
         params, priortypes, priorvalues = set_star_rotation_priors(gp, period_lim=period_lim, amplitude_lim=amplitude_lim, decaytime_lim=decaytime_lim, smoothfactor_lim=smoothfactor_lim)
 
         labels, theta, theta_priors = set_theta_priors(params, priortypes, priorvalues)
@@ -327,7 +340,9 @@ def star_rotation_gp(t, y, yerr,
         if nwalkers < 2*ndim:
             nwalkers = 2*ndim
         
-        sampler = emcee.EnsembleSampler(nwalkers, ndim, gprotlnprob, args = [gp, t, y, yerr, params, labels, theta_priors])
+        sampler = emcee.EnsembleSampler(nwalkers, ndim, gprotlnprob, 
+                                        args = [gp, t, y, yerr, params, labels, theta_priors],
+                                        pool=pool)
 
         # Initialize the walkers.
         pos = [theta + amp * np.random.randn(ndim) for i in range(nwalkers)]

@@ -42,6 +42,7 @@ parser.add_option("-t", "--pairsplot", dest="pairsplot", help='Pairsplot file na
 parser.add_option("-n", "--nsteps", dest="nsteps", help="Number of MCMC steps",type='int',default=500)
 parser.add_option("-w", "--walkers", dest="walkers", help="Number of MCMC walkers",type='int',default=32)
 parser.add_option("-b", "--burnin", dest="burnin", help="Number of MCMC burn-in samples",type='int',default=100)
+parser.add_option("-c", "--nbcores", dest="nbcores", help="Number of cores to run the MCMC in parallel",type='int',default=1)
 parser.add_option("-r", action="store_true", dest="use_gls_period", help="Use period from GLS periodogram", default=False)
 parser.add_option("-s", action="store_true", dest="savesamples", help="Save MCMC samples into file", default=False)
 parser.add_option("-e", action="store_true", dest="mode", help="Best fit parameters obtained by the mode instead of median", default=False)
@@ -65,6 +66,7 @@ if options.verbose:
     print('Number of MCMC steps: ', options.nsteps)
     print('Number of MCMC walkers: ', options.walkers)
     print('Number of MCMC burn-in samples: ', options.burnin)
+    print('Number of cores requested for MCMC: ', options.nbcores)
 
 prior_path = os.path.abspath(options.gp_priors)
 prior_basename = os.path.basename(prior_path)
@@ -166,9 +168,24 @@ fix_smoothfactor = param_fixed["smoothfactor"]
 smoothfactor_lim = param_lim["smoothfactor"]
 
 amp, nwalkers, niter, burnin = 1e-4, options.walkers, options.nsteps, options.burnin
+nbcores = options.nbcores
 
 # Run GP on B-long data with a QP kernel
-gp = gp_lib.star_rotation_gp(bjds, y, yerr, period=best_period, period_lim=period_lim, fix_period=fix_period, amplitude=amplitude, amplitude_lim=amplitude_lim, fix_amplitude=fix_amplitude, decaytime=decaytime, decaytime_lim=decaytime_lim, fix_decaytime=fix_decaytime, smoothfactor=smoothfactor, smoothfactor_lim=smoothfactor_lim, fix_smoothfactor=fix_smoothfactor, fixpars_before_fit=True, fit_mean=fit_mean, fit_white_noise=fit_white_noise, period_label=r"Prot [d]", amplitude_label=r"$\alpha$ {0}".format(options.variable_units), decaytime_label=r"$l$ [d]", smoothfactor_label=r"$\beta$", mean_label=r"$\mu$ {0}".format(options.variable_units), white_noise_label=r"$\sigma$ {0}".format(options.variable_units), output_pairsplot=output_pairsplot, run_mcmc=True, amp=amp, nwalkers=nwalkers, niter=niter, burnin=burnin, x_label="BJD", y_label=ylabel, output=gp_posterior, best_fit_from_mode = options.mode, plot_distributions = options.plot_distributions, plot=True, verbose=True)
+gp = gp_lib.star_rotation_gp(bjds, y, yerr, period=best_period, period_lim=period_lim, 
+                             fix_period=fix_period, amplitude=amplitude, amplitude_lim=amplitude_lim, 
+                             fix_amplitude=fix_amplitude, decaytime=decaytime, decaytime_lim=decaytime_lim, 
+                             fix_decaytime=fix_decaytime, smoothfactor=smoothfactor, 
+                             smoothfactor_lim=smoothfactor_lim, fix_smoothfactor=fix_smoothfactor, 
+                             fixpars_before_fit=True, fit_mean=fit_mean, fit_white_noise=fit_white_noise, 
+                             period_label=r"Prot [d]", amplitude_label=r"$\alpha$ {0}".format(options.variable_units), 
+                             decaytime_label=r"$l$ [d]", smoothfactor_label=r"$\beta$", 
+                             mean_label=r"$\mu$ {0}".format(options.variable_units), 
+                             white_noise_label=r"$\sigma$ {0}".format(options.variable_units), 
+                             output_pairsplot=output_pairsplot, run_mcmc=True, amp=amp, nwalkers=nwalkers, 
+                             niter=niter, burnin=burnin, x_label="BJD", y_label=ylabel, 
+                             output=gp_posterior, best_fit_from_mode = options.mode, 
+                             plot_distributions = options.plot_distributions, 
+                             plot=True, verbose=True, nbcores=nbcores)
 
 gp_params = gp_lib.get_star_rotation_gp_params(gp)
 best_period = gp_params["period"]
