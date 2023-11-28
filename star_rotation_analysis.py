@@ -33,6 +33,7 @@ import gp_lib
 import timeseries_lib
 
 parser = OptionParser()
+parser.add_option("-f", "--file_params", dest="file_params", help='Text file containing the default parameters the used wants to set. Any opion in the file will be bypassed by the option provided at runtime.',type='string',default="")
 parser.add_option("-i", "--input", dest="input", help='Input time series data file (.rdb)',type='string',default="")
 parser.add_option("-m", "--variable_name", dest="variable_name", help='Variable name',type='string',default="B$_l$")
 parser.add_option("-u", "--variable_units", dest="variable_units", help='Variable units',type='string',default="")
@@ -51,6 +52,27 @@ parser.add_option("-l", action="store_true", dest="print_latex", help="print dat
 parser.add_option("-p", action="store_true", dest="plot", help="plot",default=False)
 parser.add_option("-v", action="store_true", dest="verbose", help="verbose",default=False)
 
+try:
+    options,args = parser.parse_args(sys.argv[1:])
+except:
+    print("Error: check usage with star_rotation_analysis.py -h "); sys.exit(1);
+
+## Load the default options if provided
+## I update the default value of the parser, then reparse the input
+if options.file_params!="":
+    f = open(options.file_params, 'r')
+    updated_args = []
+    for line in f.readlines():
+        if line.strip()=='': continue
+        if line.strip()[0]=='#': continue
+        sl = line.split()
+        if sl[0] not in parser.defaults:
+            print("Error: the default parameter file contains arguments not found in the options"); sys.exit(1);
+        if sl[0] in updated_args:
+            print("Error: argument repeated in default parameter file"); sys.exit(1);
+        parser.defaults[sl[0]] = sl[1]
+        updated_args.append(sl[0])
+    f.close()
 try:
     options,args = parser.parse_args(sys.argv[1:])
 except:
