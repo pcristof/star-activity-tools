@@ -38,7 +38,7 @@ parser.add_option("-m", "--variable_name", dest="variable_name", help='Variable 
 parser.add_option("-u", "--variable_units", dest="variable_units", help='Variable units',type='string',default="")
 parser.add_option("-o", "--outdir", dest="outdir", help="Directory to save output files",type='string',default="./")
 parser.add_option("-g", "--gp_priors", dest="gp_priors", help='GP priors file',type='string',default="")
-parser.add_option("-t", "--pairsplot", dest="pairsplot", help='Pairsplot file name',type='string',default="")
+parser.add_option("-t", "--pairsplot", dest="pairsplot", help='Pairsplot file name',type='string',default="dummy")
 parser.add_option("-n", "--nsteps", dest="nsteps", help="Number of MCMC steps",type='int',default=500)
 parser.add_option("-w", "--walkers", dest="walkers", help="Number of MCMC walkers",type='int',default=32)
 parser.add_option("-b", "--burnin", dest="burnin", help="Number of MCMC burn-in samples",type='int',default=100)
