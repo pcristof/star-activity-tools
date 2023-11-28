@@ -1,0 +1,13 @@
+## line per line set the default parameters
+## CAUTION Whatever values set here will be bypassed by what you run in the command line
+## For example, if you run:
+## python star_rotation_analysis.py -f data/default.params -w 100
+## The code will run with 100 walkers no matter what you are writing below.
+
+nbcores 6
+nsteps 500
+walkers 50
+burnin 500
+input ../data/aumic-bf-time.rdb
+gp_priors ../data/priors.pars
+outdir test
