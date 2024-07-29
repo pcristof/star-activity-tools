@@ -122,6 +122,14 @@ def set_theta_priors(params, priortypes, values) :
 
 def set_star_rotation_priors(gp, period_lim=(1,500), amplitude_lim=(0,1e10), decaytime_lim=(10,300), smoothfactor_lim=(0.1,1.0)) :
 
+    '''PIC: This function seems to serve two purposes:
+    1- it reads the parameters from the curent state of the gp object.
+    2- it returns a type of prior and priors based on the given amplitudes and the state of the gp_kernel...
+    
+    It is not clear with me why the priors type and ranges reset here, leaving the user frustrated.
+    I choose to rewrite this function in a much more straight forward way, see set_star_rotation_priors_v2
+    '''
+
     params = get_star_rotation_gp_params(gp)
     
     priortypes = {}
@@ -159,6 +167,35 @@ def set_star_rotation_priors(gp, period_lim=(1,500), amplitude_lim=(0,1e10), dec
 
     return params, priortypes, values
 
+def set_star_rotation_priors_v2(gp, gp_params, params_list) :
+
+    '''PIC: This function seems to serve two purposes that are not very clear to me.
+    1- it reads the parameters from the curent state of the gp object.
+    2- it returns a type of prior and priors based on the given amplitudes and the state of the gp_kernel...
+    
+    Same as set_star_rotation_priors, but sets the priors with from the user inputs.
+    '''
+
+    params = get_star_rotation_gp_params(gp)
+    
+    ## PIC: The problem is now to update the initial guess based on params
+    ## for the different cases. 
+    priortypes = {}
+    values = {}
+    ## Let's go through the parameters:
+    ## for each parameter we replace the value by that of params
+    for key in params_list:
+        if (gp_params[key+'_pdf']=='Normal') \
+            | (gp_params[key+'_pdf']=='Normal') | (gp_params[key+'_pdf']=='Jeffreys'): 
+            ## Normal distr: values are center, std
+            values[key] = (params[key], gp_params[key+'_err'][1])
+            priortypes[key] = gp_params[key+'_pdf']
+        elif (gp_params[key+'_pdf']=='Uniform') | (gp_params[key+'_pdf']=='FIXED'): 
+            ## Take the previously computed limits
+            values[key] = (gp_params[key+'_lim'])
+            priortypes[key] = gp_params[key+'_pdf']
+
+    return params, priortypes, values
 
 def update_params(params, labels, theta) :
     for i in range(len(labels)) :
@@ -169,8 +206,10 @@ def update_params(params, labels, theta) :
 def lnprior(theta_priors, theta, labels):
     total_prior = 0.0
     for i in range(len(theta)) :
-        #theta_priors[labels[i]]['object'].set_value(theta[i])
-        if theta_priors[labels[i]]['type'] == "Uniform" or theta_priors[labels[i]]['type'] == "Jeffreys" or theta_priors[labels[i]]['type'] == "Normal_positive" :
+        ## PIC: the following line was commented but should not be. 
+        ## If commented it makes the priors settings moot.  
+        theta_priors[labels[i]]['object'].set_value(theta[i])
+        if theta_priors[labels[i]]['type'] == "Uniform" or theta_priors[labels[i]]['type'] == "Jeffreys" or theta_priors[labels[i]]['type'] == "Normal_positive" or theta_priors[labels[i]]['type'] == "Normal" :
 
             if not theta_priors[labels[i]]['object'].check_value(theta[i]):
                 return -np.inf
@@ -188,7 +227,7 @@ def gprotlnprob(theta, gp, x, y, yerr, params, labels, theta_priors) :
     if not np.isfinite(lp):
         return -np.inf
     # Update the kernel gp parameters
-    params = update_params(params, labels, theta)
+    params = update_params(params, labels, theta) ## PIC: assumes that labels, theta are sorted lists
 
     gp = set_star_rotation_gp_params(gp, params)
 
@@ -196,6 +235,34 @@ def gprotlnprob(theta, gp, x, y, yerr, params, labels, theta_priors) :
 
     return gp.lnlikelihood(y, quiet=True) + lp
 
+
+def get_kernel(gp_params):
+    '''PIC, Jul.29, 2024
+    Function implementation of the kernel by Angus et al. 2017 (equation 2)'''
+
+    ## PIC: Because I copy pasted from the previous version, I reasign the variables
+    amplitude = gp_params['amplitude']
+    decaytime = gp_params['decaytime']
+    decaytime_lim = gp_params['decaytime_lim']
+    smoothfactor = gp_params['smoothfactor']
+    smoothfactor_lim = gp_params['smoothfactor_lim']
+    period = gp_params['period']
+    period_lim = gp_params['period_lim']
+
+    ## PIC: Definition of the kernel
+    # define star rotation kernel:
+    # Eq. 2 of Angus et al. 2017
+    #k1 = kernels.ConstantKernel(log_constant=np.log(amplitude**2), bounds=dict(log_constant=(np.log(amplitude_lim[0]**2),np.log(amplitude_lim[1]**2))))
+    k1 = kernels.ConstantKernel(log_constant=np.log(amplitude**2))
+    
+    #k2 = kernels.ExpSquaredKernel(metric=np.log(decaytime**2), metric_bounds=[(np.log(decaytime_lim[0]**2),np.log(decaytime_lim[1]**2))])
+    k2 = kernels.ExpSquaredKernel(metric=decaytime**2, metric_bounds=[(np.log(decaytime_lim[0]**2),np.log(decaytime_lim[1]**2))])
+
+    k3 = kernels.ExpSine2Kernel(gamma=(1/smoothfactor)**2, log_period=np.log(period), bounds=dict(gamma=((1/smoothfactor_lim[1])**2, (1/smoothfactor_lim[0])**2),log_period=(np.log(period_lim[0]), np.log(period_lim[1]))))
+    #k3 = kernels.ExpSine2Kernel(gamma=(1/smoothfactor)**2, log_period=np.log(period))
+    
+    kernel = k1 * k2 * k3
+    return kernel
 
 def star_rotation_gp(t, y, yerr,
                      run_optimization=True,
@@ -215,20 +282,10 @@ def star_rotation_gp(t, y, yerr,
                      x_label="time", y_label="y", output_pairsplot="",
                      run_mcmc=False, amp=1e-4, nwalkers=32, niter=500, burnin=100,
                      best_fit_from_mode = True, plot_distributions=False,
-                     output="", plot=False, verbose=False, **kargs):
+                     output="", plot=False, verbose=False, gp_params=None, params_list=None, **kargs):
     
-    # define star rotation kernel:
-    # Eq. 2 of Angus et al. 2017
-    #k1 = kernels.ConstantKernel(log_constant=np.log(amplitude**2), bounds=dict(log_constant=(np.log(amplitude_lim[0]**2),np.log(amplitude_lim[1]**2))))
-    k1 = kernels.ConstantKernel(log_constant=np.log(amplitude**2))
-    
-    #k2 = kernels.ExpSquaredKernel(metric=np.log(decaytime**2), metric_bounds=[(np.log(decaytime_lim[0]**2),np.log(decaytime_lim[1]**2))])
-    k2 = kernels.ExpSquaredKernel(metric=decaytime**2, metric_bounds=[(np.log(decaytime_lim[0]**2),np.log(decaytime_lim[1]**2))])
-
-    k3 = kernels.ExpSine2Kernel(gamma=(1/smoothfactor)**2, log_period=np.log(period), bounds=dict(gamma=((1/smoothfactor_lim[1])**2, (1/smoothfactor_lim[0])**2),log_period=(np.log(period_lim[0]), np.log(period_lim[1]))))
-    #k3 = kernels.ExpSine2Kernel(gamma=(1/smoothfactor)**2, log_period=np.log(period))
-    
-    kernel = k1 * k2 * k3
+    ## PIC: Initialize the kernel
+    kernel = get_kernel(gp_params)
 
     # Below are the labels for the hyperparameters in the gp
     """
@@ -314,7 +371,7 @@ def star_rotation_gp(t, y, yerr,
         gp.freeze_parameter("kernel:k2:gamma")
 
     if run_mcmc :
-
+        ## PIC: Added piece of code to save the samples and labels
         ## Should we run in parallel?
         if kargs['nbcores'] > 1:
             from multiprocessing import Pool, get_context
@@ -328,8 +385,12 @@ def star_rotation_gp(t, y, yerr,
         else:
             pool = None
 
-        params, priortypes, priorvalues = set_star_rotation_priors(gp, period_lim=period_lim, amplitude_lim=amplitude_lim, decaytime_lim=decaytime_lim, smoothfactor_lim=smoothfactor_lim)
-
+        ## PIC: Going simpler with one dictionary.
+        ## Also removes uggly bypass of the user input priors
+        ## PIC the following line was the old code for information:
+        # params, priortypes, priorvalues = set_star_rotation_priors(gp, period_lim=period_lim, amplitude_lim=amplitude_lim, decaytime_lim=decaytime_lim, smoothfactor_lim=smoothfactor_lim)        
+        # This is the fix:
+        params, priortypes, priorvalues = set_star_rotation_priors_v2(gp, gp_params, params_list)        
         labels, theta, theta_priors = set_theta_priors(params, priortypes, priorvalues)
 
         #gp = star_rotation_gp_freeze_all_params(gp)
@@ -339,10 +400,20 @@ def star_rotation_gp(t, y, yerr,
         # Make sure the number of walkers is sufficient, and if not passing a new value
         if nwalkers < 2*ndim:
             nwalkers = 2*ndim
-        
+
+        ## PIC: I want to be able to save things (like the backend),
+        ## so I am specifiying an output directory here. 
+        thefilename = output.split('/')[-1]
+        myoutputpath = output.replace(thefilename, '')\
+        ## PIC: saving the results in a backend file
+        print('Overwriting the previous backend.h5 file:')
+        import os
+        os.remove(myoutputpath+"backend.h5")
+        backend = emcee.backends.HDFBackend(myoutputpath+"backend.h5")
+
         sampler = emcee.EnsembleSampler(nwalkers, ndim, gprotlnprob, 
                                         args = [gp, t, y, yerr, params, labels, theta_priors],
-                                        pool=pool)
+                                        pool=pool, backend=backend)
 
         # Initialize the walkers.
         pos = [theta + amp * np.random.randn(ndim) for i in range(nwalkers)]
@@ -459,11 +530,16 @@ def star_rotation_gp(t, y, yerr,
 
             params, theta_fit, theta_labels, theta_err = best_fit_params(params, labels, samples)
 
-            plot_gp_timeseries(t, y, yerr, gp, params["period"], phase_plot=False, timesampling=0.001, ylabel=y_label, number_of_free_params=len(theta_fit))
+            plot_gp_timeseries(t, y, yerr, gp, params["period"], phase_plot=False, timesampling=0.001, ylabel=y_label, number_of_free_params=len(theta_fit), output=myoutputpath)
 
         if output != "" :
             priorslib.save_posterior(output, params, theta_fit, theta_labels, theta_err)
-
+        ## PIC: I add a line here to save the results from the fit (including the reduced chi2)
+            import os
+            if not os.path.isdir(myoutputpath):
+                os.mkdir(myoutputpath)
+            save_gp_timeseries(t, y, yerr, gp, params["period"], phase_plot=False, timesampling=0.001, 
+                               ylabel=y_label, number_of_free_params=len(theta_fit), output=myoutputpath)
     return gp
 
 
@@ -518,7 +594,7 @@ def set_star_rotation_gp_params(gp, params) :
     return gp
 
 
-def plot_gp_timeseries(bjds, y, yerr, gp, fold_period, phase_plot=True, timesampling=0.001, ylabel=r"B$_l$ [G]", number_of_free_params=0) :
+def plot_gp_timeseries(bjds, y, yerr, gp, fold_period, phase_plot=True, timesampling=0.001, ylabel=r"B$_l$ [G]", number_of_free_params=0, output='') :
 
     fig, axes = plt.subplots(2, 1, figsize=(7, 5), sharex=True, sharey=False, gridspec_kw={'hspace': 0, 'height_ratios': [2, 1]})
 
@@ -574,4 +650,50 @@ def plot_gp_timeseries(bjds, y, yerr, gp, fold_period, phase_plot=True, timesamp
         plt.legend(fontsize=16)
         plt.xticks(fontsize=16)
         plt.yticks(fontsize=16)
+        plt.savefig(output+'phase.pdf')
         plt.show()
+
+def save_gp_timeseries(bjds, y, yerr, gp, fold_period, phase_plot=True, timesampling=0.001, ylabel=r"B$_l$ [G]", number_of_free_params=0, output="") :
+
+
+    ti, tf = np.min(bjds), np.max(bjds)
+    time = np.arange(ti, tf, timesampling)
+    
+    pred_mean, pred_var = gp.predict(y, time, return_var=True)
+    
+    # from IPython import embed
+    # embed()
+
+    pred_std = np.sqrt(pred_var)
+    
+    pred_mean_obs, _ = gp.predict(y, bjds, return_var=True)
+    residuals = y - pred_mean_obs
+    
+    ostr = "# time pred_mean pred_var \n"
+    for i in range(len(time)):
+        ostr+="{} {} {}\n".format(time[i], pred_mean[i], pred_var[i])
+    f = open(output+'gp_model.txt', 'w')
+    f.write(ostr)
+    f.close()
+
+    ostr = "# time obs pred_mean_obs \n"
+    for i in range(len(bjds)):
+        ostr+="{} {} {}\n".format(bjds[i], y[i], pred_mean_obs[i])
+    f = open(output+'gp_fit.txt', 'w')
+    f.write(ostr)
+    f.close()
+
+    sig_res = np.nanstd(residuals)
+
+    n = len(residuals)
+    m = number_of_free_params
+    chi2 = np.sum((residuals/yerr)**2) / (n - m)
+
+    ostr = "# Results \n"
+    ostr+="RMS_{} {:.2f}\n".format(ylabel, sig_res)
+    ostr+="n {}\n".format(n)
+    ostr+="m {}\n".format(m)
+    ostr+="chi2 {}".format(chi2)
+    f = open(output+'results.txt', 'w')
+    f.write(ostr)
+    f.close()
