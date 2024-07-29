@@ -130,6 +130,25 @@ for key in gp_params.keys() :
 print("----------------")
 
 
+# PIC: Updating the approach to store the information of each parameter in a UNIQUE dictionary
+gp_priors = priorslib.read_priors(options.gp_priors)
+gp_params = priorslib.read_starrot_gp_params(gp_priors)
+## All we need really is to have some "default" limits for the kernel the way it's implemented later
+## So for now, let's just add limits to the dictionary:
+## Get the name of the parameters in the dictionary:
+params_list = []
+for key in gp_params.keys() :
+    if ("_err" not in key) and ("_pdf" not in key) :
+        params_list.append(key)
+## They for each of key, let's define limits
+for key in params_list:
+    ## Ok nope, there are three cases to implement
+    if gp_params[key+'_pdf'] == "FIXED" :
+        gp_params[key+'_lim'] = (gp_params[key],gp_params[key])
+    elif gp_params[key+'_pdf'] == "Uniform" or gp_params[key+'_pdf'] == "Jeffreys":
+        gp_params[key+'_lim'] = (gp_params[key+'_err'][0],gp_params[key+'_err'][1])
+    elif gp_params[key+'_pdf'] == "Normal" or gp_params[key+'_pdf'] == "Normal_positive":
+        gp_params[key+'_lim'] = (gp_params[key]-5*gp_params[key+'_err'][1],gp_params[key]+5*gp_params[key+'_err'][1])
 ##########################################
 ### LOAD input data
 ##########################################
@@ -210,7 +229,7 @@ gp = gp_lib.star_rotation_gp(bjds, y, yerr, period=best_period, period_lim=perio
                              niter=niter, burnin=burnin, x_label="BJD", y_label=ylabel, 
                              output=gp_posterior, best_fit_from_mode = options.mode, 
                              plot_distributions = options.plot_distributions, 
-                             plot=True, verbose=True, nbcores=nbcores)
+                             plot=True, verbose=True, gp_params=gp_params, params_list=params_list, nbcores=nbcores)
 
 gp_params = gp_lib.get_star_rotation_gp_params(gp)
 best_period = gp_params["period"]
