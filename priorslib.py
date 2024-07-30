@@ -17,6 +17,7 @@ __copyright__ = """
     """
 
 import numpy as np
+import os, sys
 
 def get_quantiles(dist, alpha = 0.68, method = 'median'):
     """
@@ -199,10 +200,16 @@ def read_priors(filename, calibration=False, rvcalibration=False, flares=False) 
             #                                [2]: hyperparameters,
             #                                [3]: starting value (optional)
             values = line.split()
-            priors[values[0]] = generate_parameter(values)
+            ## PIC: Consistency check:
+            ## I want to make sure the user hasn't given parameters twice in their input file.
+            ## I they have, I print an error and exit.
+            key = values[0]
+            if key in priors.keys():
+                print('Error: prior repeated in input file - {}'.format(key)); sys.exit(1)
+            priors[key] = generate_parameter(values)
             errors = np.array(values[2].split(',')).astype('float64')
-            error_key = "{0}_err".format(values[0])
-            pdf_key = "{0}_pdf".format(values[0])
+            error_key = "{0}_err".format(key)
+            pdf_key = "{0}_pdf".format(key)
             priors[pdf_key] = values[1]
             priors[error_key] = errors
             n_params += 1
