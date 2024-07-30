@@ -185,12 +185,11 @@ def set_star_rotation_priors_v2(gp, gp_params, params_list) :
     ## Let's go through the parameters:
     ## for each parameter we replace the value by that of params
     for key in params_list:
-        if (gp_params[key+'_pdf']=='Normal') \
-            | (gp_params[key+'_pdf']=='Normal') | (gp_params[key+'_pdf']=='Jeffreys'): 
+        if gp_params[key+'_pdf'] in ['Normal', 'Normal_positive']: 
             ## Normal distr: values are center, std
             values[key] = (params[key], gp_params[key+'_err'][1])
             priortypes[key] = gp_params[key+'_pdf']
-        elif (gp_params[key+'_pdf']=='Uniform') | (gp_params[key+'_pdf']=='FIXED'): 
+        elif gp_params[key+'_pdf'] in ['Uniform', 'FIXED', 'Jeffreys']: 
             ## Take the previously computed limits
             values[key] = (gp_params[key+'_lim'])
             priortypes[key] = gp_params[key+'_pdf']
